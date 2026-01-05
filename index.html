@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจองทัวร์ศาลเจ้า - Realtime Sheets</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Sarabun', sans-serif; background-color: #f8f5f2; }</style>
+</head>
+<body class="p-4 md:p-10" onload="loadBookings(); setMinDate();">
+
+    <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div class="lg:col-span-5 bg-white shadow-xl rounded-2xl overflow-hidden border border-red-100 h-fit sticky top-10">
+            <div class="bg-red-700 p-5 text-center text-white">
+                <h1 class="text-xl font-bold">ลงทะเบียนจองทัวร์</h1>
+                <p class="text-sm opacity-80">จำกัด 20 ท่าน/รอบ</p>
+            </div>
+            <div class="p-6 space-y-5">
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-1">วันที่ต้องการจอง</label>
+                    <div class="relative group">
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400 group-hover:text-red-500 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2v12a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <input type="text" id="dateDisplay" readonly placeholder="เลือกวันที่จอง (วว/ดด/พ.ศ.)" 
+                               class="w-full p-3 pr-10 border rounded-lg bg-white outline-none focus:ring-2 focus:ring-red-500 cursor-pointer shadow-sm border-gray-200">
+                        <input type="date" id="bookingDate" class="absolute inset-0 opacity-0 cursor-pointer" oninput="handleDateChange(this.value)">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">รอบเวลา</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="selectSlot('10:00')" id="slot-10" class="slot-btn border-2 p-3 rounded-lg text-center bg-white transition-all">10:00 น.</button>
+                        <button onclick="selectSlot('14:00')" id="slot-14" class="slot-btn border-2 p-3 rounded-lg text-center bg-white transition-all">14:00 น.</button>
+                    </div>
+                </div>
+
+                <div id="participantSection" class="hidden space-y-4 border-t pt-4">
+                    <input type="text" id="leadName" class="w-full p-3 border rounded-lg outline-none" placeholder="ชื่อผู้จองหลัก">
+                    <select id="groupSize" onchange="generateNameInputs()" class="w-full p-3 border rounded-lg">
+                        <script>for(let i=1; i<=20; i++) document.write(`<option value="${i}">${i} ท่าน</option>`);</script>
+                    </select>
+                    <div id="namesContainer" class="space-y-2"></div>
+                    <button onclick="confirmBooking()" id="submitBtn" class="w-full bg-red-600 text-white py-4 rounded-xl font-bold hover:bg-red-700 shadow-lg transition-all">ยืนยันการจอง</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-7 space-y-6">
+            <h2 class="text-2xl font-bold text-gray-800 border-l-4 border-red-600 pl-3 flex justify-between items-center">
+                รายชื่อผู้จอง
+                <button onclick="loadBookings()" class="text-sm font-normal text-blue-600 hover:underline flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    รีเฟรชข้อมูล
+                </button>
+            </h2>
+            <div id="bookingDisplay" class="space-y-4">
+                <div class="text-center py-10 text-gray-400 italic">กำลังโหลดข้อมูล...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // *** วาง URL เว็บแอปของคุณที่นี่ ***
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMfntFwBC7zChHmmnIbU6-CR0c0LVamyi0oiw5siqxQeZ0nSlPi672qM1_Z1aW9wVS/exec'; 
+        let selectedTime = '';
+
+        function setMinDate() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('bookingDate').setAttribute('min', today);
+        }
+
+        function handleDateChange(val) {
+            if(!val) return;
+            const dateObj = new Date(val);
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            if (dateObj < today) {
+                alert('ไม่สามารถจองวันที่ผ่านมาแล้วได้');
+                document.getElementById('bookingDate').value = '';
+                document.getElementById('dateDisplay').value = '';
+                return;
+            }
+
+            document.getElementById('dateDisplay').value = dateObj.toLocaleDateString('th-TH', {
+                day: '2-digit', month: '2-digit', year: 'numeric'
+            });
+        }
+
+        function selectSlot(time) {
+            selectedTime = time;
+            document.querySelectorAll('.slot-btn').forEach(btn => btn.className = 'slot-btn border-2 p-3 rounded-lg text-center bg-white border-gray-100');
+            document.getElementById(time === '10:00' ? 'slot-10' : 'slot-14').className = 'slot-btn border-red-600 bg-red-50 border-2 p-3 rounded-lg text-center font-bold text-red-600 shadow-sm';
+            document.getElementById('participantSection').classList.remove('hidden');
+            generateNameInputs();
+        }
+
+        function generateNameInputs() {
+            const size = document.getElementById('groupSize').value;
+            const container = document.getElementById('namesContainer');
+            container.innerHTML = '';
+            for (let i = 1; i <= size; i++) {
+                container.innerHTML += `<input type="text" placeholder="ชื่อคนที่ ${i}" class="participant-name w-full p-2 border border-gray-100 rounded-lg bg-gray-50 text-sm outline-none focus:bg-white focus:border-red-300">`;
+            }
+        }
+
+        async function loadBookings() {
+            const display = document.getElementById('bookingDisplay');
+            try {
+                const response = await fetch(SCRIPT_URL);
+                const data = await response.json();
+                
+                if (!data || data.length === 0) {
+                    display.innerHTML = '<div class="bg-white p-10 rounded-2xl shadow border-2 border-dashed text-gray-400 text-center">ยังไม่มีข้อมูลการจอง</div>';
+                    return;
+                }
+
+                // --- กรองข้อมูล: แสดงเฉพาะวันนี้และอนาคต ---
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                const futureBookings = data.filter(b => {
+                    const bookingDate = new Date(b.date);
+                    return bookingDate >= today;
+                });
+
+                if (futureBookings.length === 0) {
+                    display.innerHTML = '<div class="bg-white p-10 rounded-2xl shadow border-2 border-dashed text-gray-400 text-center">ไม่มีการจองในอนาคต</div>';
+                    return;
+                }
+
+                // เรียงลำดับ
+                futureBookings.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                display.innerHTML = futureBookings.map(b => {
+                    let displayDate = b.date;
+                    const dateObj = new Date(b.date);
+                    if (!isNaN(dateObj)) {
+                        displayDate = dateObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+                    }
+
+                    let cleanTime = b.time;
+                    if(b.time.includes('T')) {
+                        const parts = b.time.split('T')[1].split(':');
+                        cleanTime = parts[0] + ":" + parts[1];
+                    } else {
+                        cleanTime = b.time.substring(0, 5);
+                    }
+
+                    return `
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:border-red-200 transition-all">
+                        <div class="flex justify-between items-center border-b border-gray-50 pb-2 mb-2">
+                            <span class="font-bold text-red-700 text-lg">${displayDate} | รอบ ${cleanTime} น.</span>
+                            <span class="text-xs bg-gray-100 px-2 py-1 rounded-full font-bold text-gray-600">${b.size} ท่าน</span>
+                        </div>
+                        <div class="text-sm font-semibold text-gray-800 italic">ผู้จอง: คุณ ${b.lead}</div>
+                        <div class="text-xs text-gray-400 mt-1">สมาชิก: ${b.members.join(', ')}</div>
+                    </div>`;
+                }).join('');
+            } catch (error) {
+                display.innerHTML = '<p class="text-red-500 text-center">โหลดข้อมูลไม่สำเร็จ</p>';
+            }
+        }
+
+        async function confirmBooking() {
+            const date = document.getElementById('bookingDate').value;
+            const lead = document.getElementById('leadName').value.trim();
+            const names = Array.from(document.querySelectorAll('.participant-name')).map(input => input.value.trim()).filter(v => v !== '');
+            
+            if (!date || !lead || names.length === 0 || !selectedTime) return alert('กรุณากรอกข้อมูลให้ครบถ้วน');
+
+            // ตรวจสอบวันที่ย้อนหลังก่อนส่ง
+            const selectedDate = new Date(date);
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            if (selectedDate < today) return alert('ไม่สามารถจองวันที่ผ่านมาแล้วได้');
+
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true; btn.innerText = 'กำลังบันทึกข้อมูล...';
+
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify({ date, time: selectedTime, lead, size: names.length, members: names })
+                });
+                alert('จองเรียบร้อยแล้ว!');
+                location.reload();
+            } catch (error) {
+                alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+                btn.disabled = false; btn.innerText = 'ยืนยันการจอง';
+            }
+        }
+    </script>
+</body>
+</html>
